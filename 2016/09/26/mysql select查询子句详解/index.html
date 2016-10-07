@@ -1,0 +1,85 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description" content="做了不一定成功，但是不去做，一定会后悔。"><title>mysql select查询子句详解 | 不随波的水草</title><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/normalize/4.2.0/normalize.min.css"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/pure/0.6.0/pure-min.css"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/pure/0.6.0/grids-responsive-min.css"><link rel="stylesheet" type="text/css" href="/css/style.css?v=1"><link rel="stylesheet" href="//cdn.bootcss.com/font-awesome/4.6.3/css/font-awesome.min.css"><script type="text/javascript" src="//cdn.bootcss.com/jquery/3.0.0/jquery.min.js"></script><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">mysql select查询子句详解</h1><a id="logo" href="/.">不随波的水草</a><p class="description">为了工作，加油！</p></div><div id="nav-menu"><a href="/." class="current"><i class="fa fa-home"> 首页</i></a><a href="/archives/"><i class="fa fa-archive"> 归档</i></a><a href="/about/"><i class="fa fa-user"> 关于</i></a></div></div><div id="layout" class="pure-g"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post"><h1 class="post-title">mysql select查询子句详解</h1><div class="post-meta">Sep 26, 2016<span> | </span><span class="category"><a href="/categories/技术/">技术</a></span><script src="https://dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js" async></script><span id="busuanzi_container_page_pv"> | <span id="busuanzi_value_page_pv"></span><span> Hits</span></span></div><div class="post-content"><p>转载自CSDN @<a href="http://blog.csdn.net/qdx411324962/article/details/41380139" target="_blank" rel="external">wxh_无香花自开</a></p>
+<p>　　where、group by、having、order by、limit是select查询中的5个子句，理解了这5个子句的执行过程，才能算是真正的对mysql select查询入门了。<br>它的执行过程是这样的：（如果同时出现在一条select中，必须按以下顺序）</p>
+<p>第一步：先是where，得到一张表。注意，where是对表进行操作得到一个临时结果；</p>
+<p>第二步：再到5个统计函数和group by运算，得到一个结果集<br>（它的列名，可与原来相同，也可以不同，配合聚合函数使用，如果不使用聚合函数，就没有使用group by的必要了）；</p>
+<p>第三步：执行having。注意，having是对结果集进行操作<br>（一般是对group by处理后的结果进行限制，也就是使用聚合函数后的结果进行排除，如果不使用group by，就没有使用having的必要，<br>   因为having能做的事，where都能做，效率高很多；HAVING子句是配合GROUP BY使用的，单独使用HAVING本身是不符合规范的）；</p>
+<p>第四步：执行order by</p>
+<p>第五步：执行limit。</p>
+<p>　　其它重要三个知识点：<br>（1）列/字段相当于变量，即可以进行各种运算；<br>（2）where后面为表达式，为真则执行；<br>（3）结果集在结构上仍然是一个表，可以进行再次的查询。</p>
+<p>　　一般来说，HAVING子句是配合GROUP BY使用的，单独使用HAVING本身是不符合规范的，<br>但是MySQL会做一个重写，加上一个　　<code>GROUP BY NULL，”SELECT * FROM t HAVING id=MIN(id)”</code>会被重写为<code>”SELECT * FROM t GROUP BY NULL HAVING id=MIN(id)”</code>，这样语法就符合规范了；<br>但是，这个 GROUP BY NULL 会产生什么结果呢？经过查看代码和试验，可以证明，GROUP BY NULL 等价于 LIMIT 1</p>
+<p>———————-创建表—————————————-</p>
+<p>先创建一张学生成绩表</p>
+<pre><code>create table student(
+name varchar(10) not null default &apos;&apos;,
+subject char(2) not null default &apos;&apos;,
+score tinyint not null default 0
+)engine myisam charset utf8;
+</code></pre><p>再插入一些数据</p>
+<pre><code>insert into student values(&apos;张三&apos;,&apos;语文&apos;,80),(&apos;张三&apos;,&apos;政治&apos;,38),
+(&apos;张三&apos;,&apos;数学&apos;,20),(&apos;李四&apos;,&apos;英语&apos;,52),(&apos;李四&apos;,&apos;化学&apos;,47),
+(&apos;王五&apos;,&apos;语文&apos;,70),(&apos;王五&apos;,&apos;物理&apos;,58),(&apos;陈六&apos;,&apos;数学&apos;,38);
+</code></pre><p>————————-select查询的执行过程————————</p>
+<p>题目要求：查询各个学生成绩不及格课程的平均分</p>
+<pre><code>mysqlselect name,avg(score) from student where score&lt;60 group by name;
++------+------------+
+| name | avg(score) |
++------+------------+
+| 张三 |29.0000 |
+| 李四 |49.5000 |
+| 王五 |58.0000 |
+| 陈六 |38.0000 |
++------+------------+
+4 rows in set (0.00 sec)
+</code></pre><p>过程解析：</p>
+<p>第一步：执行where条件，但是并没有选择列，结果得到一张表，它的列与原始列相同，并且满足where条件。即执行下边这条语句</p>
+<pre><code>mysql&gt; select * from student where score&lt;60;
++------+---------+-------+
+| name | subject | score |
++------+---------+-------+
+| 张三 | 政治|38 |
+| 张三 | 数学|20 |
+| 李四 | 英语|52 |
+| 李四 | 化学|47 |
+| 王五 | 物理|58 |
+| 陈六 | 数学|38 |
++------+---------+-------+
+6 rows in set (0.00 sec)
+</code></pre><p>第二步，进行max/min/sum/avg/count统计运算，以及group by运算。它得到的是一个结果集，即我们的最终答案。</p>
+<pre><code>mysql&gt; select name,avg(score) from student where score&lt;60 group by name;
+</code></pre><p>题目要求：查询出有2门及2门以上课程不及格的学生的平均成绩。（即，该学生有2门及2门以上课程不及格；查询的是满足条件的学生，所有课程的平均分）</p>
+<p><strong>采用逆向思维</strong>：先查询各个学生的平均分，再筛选出挂课2门及以上的学生；<br>如果采用正向思维：先查找出挂科2门及以上的学生，再获取平均分。语句很复杂</p>
+<hr>
+<p>逆向思维正确语句为：</p>
+<pre><code>mysql&gt; select name,avg(score),sum(score&lt;60) as gk from student group by name having gk&gt;=2;
++------+------------+------+
+| name | avg(score) | gk   |
++------+------------+------+
+| 张三 |46.0000 |2 |
+| 李四 |49.5000 |2 |
++------+------------+------+
+2 rows in set (0.07 sec)
+</code></pre><hr>
+<p>第一步：查询各个学生的平均成绩。注意，这里多添加了一个字段，不及格标记为1，及格标记为0。这是利用了列即是变量的特点，进行运算。</p>
+<p>第二步：having gk&gt;=2，筛选先挂科数目大于等于2的学生。</p>
+<p>补充：</p>
+<p>1.where :</p>
+<p>where后跟条件用来筛选我们所需的行。它后面可以跟的操作符有=、！=、&lt;、&gt;、&lt;=、&gt;=、 in、 like(可以和通配符%结合一起用，效果将会更好) 、between….and…….. AND、OR 、NOT<br>如：select id,name,score form student where score in (每组里面的最高分组合); </p>
+<p>2.group by<br>GROUP BY 语句用于结合合计函数（也叫聚合函数sum count avg max min），根据一个或多个列对结果集进行分组。否则没有多大的意义</p>
+<blockquote>
+<p>group by 有一个原则,就是 select 后面的所有列中,没有使用聚合函数的列,必须出现在 group by 后面<br>如：我们对文字的分类id进行分组,查询每组分类的文章数 select articlecategory_id,count（*） from article group by articlecategory_id;</p>
+</blockquote>
+<p>再次提示：</p>
+<p>如果你使用了group by，而没有相应的使用聚合函数那么结果就没有意义了，按照实际情况来思考的话就变成了一对多了（也就是一个分组对应多个对象（也就是多行），那么一个分组对应多行数据的显示就变成了分组和第一行数据进行显示了，所以此时我们应该使用聚合函数（聚合函数就是把多个变成一），也就是对多行数据进行筛选，得到我们想要的数据，如：可以使用count计算论坛小组总帖子数，可以使用sum来计算</p>
+<blockquote>
+<p>pre id=”best-answer-content” class=”reply-text mb10” name=”code” style=”word-wrap: break-word; margin-top: 0px; margin-bottom: 10px; padding: 0px; zoom: 1;”</p>
+</blockquote>
+<p>论坛小组帖子总回复数，可以使用max来计算论坛小组最多回复的帖子，可以使用min来计算论坛小组最少回复数（没有多大意义，商城最便宜的商品就意义了），可以使用avg来计算论坛每周的平均访问量（商城所有商品的平均价格）等。</p>
+<blockquote>
+<p>pre id=”best-answer-content” class=”reply-text mb10” name=”code” style=”word-wrap: break-word; margin-top: 0px; margin-bottom: 10px; padding: 0px; zoom: 1;”</p>
+</blockquote>
+<p>3.having<br>这个是针对查询的结果进行作用，只能对结果拥有的列进行操作，与where不同的是where是针对原表(就是from后面的那张表的字段)发挥作用。其中having里面可以使用<br>聚合函数。为group by子句设置条件，类似于where为select语句设置条件的方法。having的查找条件可以包括集合函数表达式。除此之外，它的查找条件与where查找条<br>件相同。</p>
+<pre><code>select articlecategory_id,count（*） from article group by articlecategory_id having count(*)&lt;5;
+</code></pre><p>4.order by 排序<br>可以针对字段进行排序，order by 字段1 [asc] 升序，[desc] 降序</p>
+<p>5.limit 获取条目的限定<br>语法 limit offset,N</p>
+<p><strong>总结</strong>：where是针对from后面跟的表进行处理，而group by having order by limit则是针对select后面的字段进行处理。从它们的结构角度来看则：先整体后部分。</p>
+</div><script type="text/javascript" src="/js/share.js?v=1" async></script><a data-url="AyoCross.github.io/2016/09/26/mysql select查询子句详解/" data-id="citzrigas0007jkfj04cfdn4q" class="article-share-link">分享到</a><div class="tags"><a href="/tags/语法/">语法</a><a href="/tags/mysql/">mysql</a><a href="/tags/select/">select</a></div><div class="post-nav"><a href="/2016/10/01/python的内存管理/" class="pre">python的内存管理</a><a href="/2016/09/23/深入理解python中的闭包/" class="next">深入理解python中的闭包</a></div></div></div></div><div class="pure-u-1-4 hidden_mid_and_down"><div id="sidebar"><div class="widget"><form action="//www.google.com/search" method="get" accept-charset="utf-8" target="_blank" class="search-form"><input type="text" name="q" maxlength="20" placeholder="Search"/><input type="hidden" name="sitesearch" value="AyoCross.github.io"/></form></div><div class="widget"><div class="widget-title"><i class="fa fa-folder-o"> 分类</i></div><ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/hexo/">hexo</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术/">技术</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/杂文/">杂文</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-star-o"> 标签</i></div><div class="tagcloud"><a href="/tags/hexo/" style="font-size: 15px;">hexo</a> <a href="/tags/碎碎念/" style="font-size: 15px;">碎碎念</a> <a href="/tags/python/" style="font-size: 15px;">python</a> <a href="/tags/语法/" style="font-size: 15px;">语法</a> <a href="/tags/内存/" style="font-size: 15px;">内存</a> <a href="/tags/mysql/" style="font-size: 15px;">mysql</a> <a href="/tags/select/" style="font-size: 15px;">select</a> <a href="/tags/闭包/" style="font-size: 15px;">闭包</a></div></div><div class="widget"><div class="widget-title"><i class="fa fa-file-o"> 最新文章</i></div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2016/10/07/转行碎碎念/">转行、跳槽碎碎念</a></li><li class="post-list-item"><a class="post-list-link" href="/2016/10/01/python的内存管理/">python的内存管理</a></li><li class="post-list-item"><a class="post-list-link" href="/2016/09/26/mysql select查询子句详解/">mysql select查询子句详解</a></li><li class="post-list-item"><a class="post-list-link" href="/2016/09/23/深入理解python中的闭包/">深入理解python中的闭包</a></li><li class="post-list-item"><a class="post-list-link" href="/2016/09/20/Python之美/">Python之美</a></li><li class="post-list-item"><a class="post-list-link" href="/2016/09/02/HEXO+Github搭建静态博客/">HEXO+Github搭建静态博客</a></li><li class="post-list-item"><a class="post-list-link" href="/2016/05/08/Python学习初衷、心得/">python学习初衷、心得</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-external-link"> 友情链接</i></div><ul></ul><a href="https://github.com/AyoCross/AyoCross.github.io" title="github" target="_blank">github</a><ul></ul><a href="https://www.zhihu.com/people/xu-xiao-68-52" title="知乎" target="_blank">知乎</a><ul></ul><a href="http://www.itechzero.com/" title="google镜像" target="_blank">google镜像</a></div></div></div><div class="pure-u-1 pure-u-md-3-4"><div id="footer">© <a href="/." rel="nofollow">不随波的水草.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div></div></div><a id="rocket" href="#top" class="show"></a><script type="text/javascript" src="/js/totop.js?v=1" async></script><script type="text/javascript" src="//cdn.bootcss.com/fancybox/2.1.5/jquery.fancybox.pack.js" async></script><script type="text/javascript" src="/js/fancybox.js?v=1" async></script><link rel="stylesheet" type="text/css" href="/css/jquery.fancybox.css?v=1"><script type="text/javascript" src="/js/codeblock-resizer.js?v=1"></script><script type="text/javascript" src="/js/smartresize.js?v=1"></script></div></body></html>
